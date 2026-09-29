@@ -1,0 +1,1 @@
+export type Screen = 'login' | 'signup' | '2fa' | 'dashboard' | 'manage' | 'generate' | 'schedule' | 'conflict' | 'reports' | 'service-portal';
