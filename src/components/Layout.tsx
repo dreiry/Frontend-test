@@ -34,7 +34,7 @@ function Sidebar({
   setCollapsed,
   activeTerm,
   setActiveTerm,
-  userDept // <- Idinagdag ang userDept prop
+  userDept
 }: { 
   screen: Screen; 
   setScreen: (s: Screen) => void; 
@@ -142,7 +142,6 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
 
   // States for Settings Modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'account' | 'preferences'>('account');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   // Toast States
@@ -157,9 +156,6 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
   const [showHeader, setShowHeader] = useState(true);
   const lastScrollY = useRef(0);
 
-  // Toggles State
-  const [toggles, setToggles] = useState({ notifs: true, strictCsp: true, autoSave: false });
-
   // Kunin ang user details mula sa localStorage kapag nag-mount ang component
   useEffect(() => {
     const storedUser = localStorage.getItem('sage_user');
@@ -171,8 +167,7 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
     }
   }, []);
 
-  const openSettings = (tab: 'account' | 'preferences') => {
-    setSettingsTab(tab);
+  const openSettings = () => {
     setShowSettingsModal(true);
     setShowProfileMenu(false);
   };
@@ -238,12 +233,6 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
     }
   };
 
-  const ToggleSwitch = ({ active, onClick }: { active: boolean, onClick: () => void }) => (
-    <div onClick={onClick} style={{ width: 44, height: 24, background: active ? '#20a783' : '#cbd5e1', borderRadius: 12, position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
-       <div style={{ width: 20, height: 20, background: '#fff', borderRadius: '50%', position: 'absolute', top: 2, left: active ? 22 : 2, transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
-    </div>
-  );
-
   return (
     <div className="sage-bg" style={{ height: '100vh', display: 'flex', overflow: 'hidden', backgroundColor: '#f8f9fa', position: 'relative' }}>
       
@@ -267,64 +256,43 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(26, 22, 48, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div className="fade-up" style={{ background: '#fff', width: '100%', maxWidth: '650px', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
             
-            <div style={{ background: '#f8f9fa', padding: '1.5rem 2rem 0', borderBottom: '1px solid #e5e7eb' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1a1630', margin: 0 }}>System Configuration</h3>
+            <div style={{ background: '#f8f9fa', padding: '1.5rem 2rem 1.5rem', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1a1630', margin: 0 }}>Account Profile</h3>
                 <button onClick={() => setShowSettingsModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-              </div>
-              <div style={{ display: 'flex', gap: '2rem' }}>
-                <button onClick={() => setSettingsTab('account')} style={{ background: 'none', border: 'none', padding: '0.5rem 0', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, color: settingsTab === 'account' ? '#d4163c' : '#6b7280', borderBottom: settingsTab === 'account' ? '3px solid #d4163c' : '3px solid transparent', transition: 'all 0.2s' }}>Account Profile</button>
-                <button onClick={() => setSettingsTab('preferences')} style={{ background: 'none', border: 'none', padding: '0.5rem 0', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, color: settingsTab === 'preferences' ? '#d4163c' : '#6b7280', borderBottom: settingsTab === 'preferences' ? '3px solid #d4163c' : '3px solid transparent', transition: 'all 0.2s' }}>System Preferences</button>
               </div>
             </div>
 
             <div style={{ padding: '2rem', flex: 1, minHeight: '300px' }}>
-              {settingsTab === 'account' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <input type="file" accept="image/png, image/jpeg" ref={profilePicInputRef} onChange={handlePhotoFileChange} style={{ display: 'none' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#9b232a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700, position: 'relative', textTransform: 'uppercase' }}>
-                      {userName ? userName.substring(0, 2) : 'U'}
-                      <div onClick={handlePhotoUploadClick} title="Upload new photo" style={{ position: 'absolute', bottom: 0, right: 0, background: '#fff', color: '#4b5563', padding: '0.3rem', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
-                    </div>
-                    <div>
-                      <button type="button" onClick={handlePhotoUploadClick} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', color: '#111827', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#e5e7eb'} onMouseOut={e => e.currentTarget.style.background = '#f3f4f6'}>Upload New Photo</button>
-                      <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.4rem' }}>JPG or PNG. Max size 2MB.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <input type="file" accept="image/png, image/jpeg" ref={profilePicInputRef} onChange={handlePhotoFileChange} style={{ display: 'none' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                  <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#9b232a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700, position: 'relative', textTransform: 'uppercase' }}>
+                    {userName ? userName.substring(0, 2) : 'U'}
+                    <div onClick={handlePhotoUploadClick} title="Upload new photo" style={{ position: 'absolute', bottom: 0, right: 0, background: '#fff', color: '#4b5563', padding: '0.3rem', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>Full Name</label>
-                      <input type="text" defaultValue={userName} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>Department</label>
-                      <input type="text" defaultValue={userDept} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
-                    </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>TUP Email Address</label>
-                      <input type="email" defaultValue={userEmail} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
-                    </div>
+                  <div>
+                    <button type="button" onClick={handlePhotoUploadClick} style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', color: '#111827', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#e5e7eb'} onMouseOut={e => e.currentTarget.style.background = '#f3f4f6'}>Upload New Photo</button>
+                    <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.4rem' }}>JPG or PNG. Max size 2MB.</div>
                   </div>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e5e7eb' }}>
-                    <div><div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#111827' }}>Email Notifications</div><div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Receive alerts when sister departments plot subjects.</div></div>
-                    <ToggleSwitch active={toggles.notifs} onClick={() => setToggles(p => ({ ...p, notifs: !p.notifs }))} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>Full Name</label>
+                    <input type="text" defaultValue={userName} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e5e7eb' }}>
-                    <div><div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#111827' }}>Strict AI Constraint Checking</div><div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Block all manual edits that violate hard constraints.</div></div>
-                    <ToggleSwitch active={toggles.strictCsp} onClick={() => setToggles(p => ({ ...p, strictCsp: !p.strictCsp }))} />
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>Department</label>
+                    <input type="text" defaultValue={userDept} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e5e7eb' }}>
-                    <div><div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#111827' }}>Default Export Format</div><div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Preferred format for generating reports.</div></div>
-                    <select style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: 600 }}><option>PDF Document</option><option>Excel Spreadsheets</option></select>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>TUP Email Address</label>
+                    <input type="email" defaultValue={userEmail} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             <div style={{ padding: '1.25rem 2rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
@@ -450,14 +418,9 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
                   </div>
 
                   <div style={{ padding: '0.5rem' }}>
-                    <button onClick={() => openSettings('account')} style={{ width: '100%', border: 'none', background: 'transparent', padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: '#4b5563', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'background 0.2s', textAlign: 'left' }} onMouseOver={e => e.currentTarget.style.background = '#f3f4f6'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                    <button onClick={openSettings} style={{ width: '100%', border: 'none', background: 'transparent', padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: '#4b5563', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'background 0.2s', textAlign: 'left' }} onMouseOver={e => e.currentTarget.style.background = '#f3f4f6'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                       Account Settings
-                    </button>
-                    
-                    <button onClick={() => openSettings('preferences')} style={{ width: '100%', border: 'none', background: 'transparent', padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: '#4b5563', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'background 0.2s', textAlign: 'left' }} onMouseOver={e => e.currentTarget.style.background = '#f3f4f6'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                      System Preferences
                     </button>
                   </div>
 
