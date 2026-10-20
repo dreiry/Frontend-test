@@ -1,7 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Screen } from '../types';
 import { I } from './Icons';
+
+// --- HELPER FUNCTION PARA SA ACTIVE TERM ---
+const getCurrentTerm = () => {
+  const now = new Date();
+  const month = now.getMonth(); // 0 = Jan, 11 = Dec
+  const year = now.getFullYear();
+
+  if (month >= 7 && month <= 11) {
+    return `1st Sem ${year}–${year + 1}`; // August to December
+  } else if (month >= 0 && month <= 4) {
+    return `2nd Sem ${year - 1}–${year}`; // January to May
+  } else {
+    return `Summer ${year}`; // June to July
+  }
+};
 
 const MAIN_NAV: { id: Screen; label: string; Icon: () => JSX.Element }[] = [
   { id: 'dashboard', label: 'Dashboard', Icon: I.Home },
@@ -18,7 +33,8 @@ function Sidebar({
   collapsed, 
   setCollapsed,
   activeTerm,
-  setActiveTerm
+  setActiveTerm,
+  userDept // <- Idinagdag ang userDept prop
 }: { 
   screen: Screen; 
   setScreen: (s: Screen) => void; 
@@ -26,9 +42,12 @@ function Sidebar({
   setCollapsed: (c: boolean) => void;
   activeTerm: string;
   setActiveTerm: (t: string) => void;
+  userDept: string;
 }) {
   const [showTermMenu, setShowTermMenu] = useState(false);
-  const termOptions = ['1st Sem 2026–2027', '2nd Sem 2025–2026', 'Summer 2026'];
+  
+  // Maaari mo itong gawing dynamic din mamaya galing sa database
+  const termOptions = ['1st Sem 2026–2027', 'Summer 2026', '2nd Sem 2025–2026', '1st Sem 2025–2026'];
 
   return (
     <aside style={{ 
@@ -86,7 +105,7 @@ function Sidebar({
             <div>
               <div style={{ fontSize: '0.6rem', fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 3 }}>Active Term</div>
               <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff' }}>{activeTerm}</div>
-              <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Computer Studies</div>
+              <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{userDept || 'Loading...'}</div>
             </div>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showTermMenu ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
@@ -94,7 +113,11 @@ function Sidebar({
       )}
 
       {/* Logout */}
-      <button onClick={() => setScreen('login')} title={collapsed ? "Logout" : ''} style={{ width: '100%', backgroundColor: '#8a2027', border: '1.5px solid rgba(0, 0, 0, 0.35)', color: '#ffffff', padding: collapsed ? '0.85rem 0' : '0.85rem', borderRadius: '12px', display: 'flex', gap: collapsed ? '0' : '0.75rem', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.15)', transition: 'all 0.2s' }}>
+      <button onClick={() => {
+        localStorage.removeItem('sage_token'); // Clear security token
+        localStorage.removeItem('sage_user');  // Clear user data
+        setScreen('login');
+      }} title={collapsed ? "Logout" : ''} style={{ width: '100%', backgroundColor: '#8a2027', border: '1.5px solid rgba(0, 0, 0, 0.35)', color: '#ffffff', padding: collapsed ? '0.85rem 0' : '0.85rem', borderRadius: '12px', display: 'flex', gap: collapsed ? '0' : '0.75rem', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.15)', transition: 'all 0.2s' }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b080d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
         {!collapsed && <span>Logout</span>}
       </button>
@@ -104,8 +127,15 @@ function Sidebar({
 
 export function MainShell({ screen, setScreen, children }: { screen: Screen; setScreen: (s: Screen) => void; children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [activeTerm, setActiveTerm] = useState('1st Sem 2026–2027');
   
+  // Awtomatikong kukunin ang current term sa pag-load
+  const [activeTerm, setActiveTerm] = useState(getCurrentTerm());
+  
+  // User Data States
+  const [userName, setUserName] = useState('');
+  const [userDept, setUserDept] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -129,6 +159,17 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
 
   // Toggles State
   const [toggles, setToggles] = useState({ notifs: true, strictCsp: true, autoSave: false });
+
+  // Kunin ang user details mula sa localStorage kapag nag-mount ang component
+  useEffect(() => {
+    const storedUser = localStorage.getItem('sage_user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setUserName(user.full_name);
+      setUserDept(user.department);
+      setUserEmail(user.email);
+    }
+  }, []);
 
   const openSettings = (tab: 'account' | 'preferences') => {
     setSettingsTab(tab);
@@ -179,25 +220,19 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
     const currentScrollY = e.currentTarget.scrollTop;
     
     if (currentScrollY > lastScrollY.current && currentScrollY > 80) {
-      // Scroll pababa -> itago
       setShowHeader(false);
     } else if (currentScrollY < lastScrollY.current) {
-      // Scroll pataas -> ipakita
       setShowHeader(true);
     }
     
     lastScrollY.current = currentScrollY;
   };
 
-  // Hover detection (Lalabas kapag nasa itaas, mawawala kapag ibinaba ang mouse)
   const handleMouseMove = (e: React.MouseEvent) => {
-    // Gumagana lang itong auto-hide kung nag-scroll na tayo pababa lagpas 80px
     if (lastScrollY.current > 80) {
       if (e.clientY < 120) {
-        // Ipakita kapag nilapit ang mouse sa taas (within 120px)
         if (!showHeader) setShowHeader(true);
       } else {
-        // Itago ulit kapag nilayo ang mouse pababa
         if (showHeader) setShowHeader(false);
       }
     }
@@ -212,7 +247,7 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
   return (
     <div className="sage-bg" style={{ height: '100vh', display: 'flex', overflow: 'hidden', backgroundColor: '#f8f9fa', position: 'relative' }}>
       
-      {/* Toast Notification via Portal */}
+      {/* Toast Notification */}
       {createPortal(
         <div style={{ position: 'fixed', top: showToast ? '2rem' : '-100px', left: '50%', transform: 'translateX(-50%)', opacity: showToast ? 1 : 0, pointerEvents: showToast ? 'auto' : 'none', background: toastType === 'success' ? '#20a783' : '#d4163c', color: '#fff', padding: '1rem 1.5rem', borderRadius: '12px', fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.75rem', boxShadow: toastType === 'success' ? '0 10px 25px rgba(32,167,131,0.4)' : '0 10px 25px rgba(212,22,60,0.4)', transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)', zIndex: 9999 }}>
           <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '50%', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -248,8 +283,8 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <input type="file" accept="image/png, image/jpeg" ref={profilePicInputRef} onChange={handlePhotoFileChange} style={{ display: 'none' }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#9b232a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700, position: 'relative' }}>
-                      DM
+                    <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#9b232a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 700, position: 'relative', textTransform: 'uppercase' }}>
+                      {userName ? userName.substring(0, 2) : 'U'}
                       <div onClick={handlePhotoUploadClick} title="Upload new photo" style={{ position: 'absolute', bottom: 0, right: 0, background: '#fff', color: '#4b5563', padding: '0.3rem', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                       </div>
@@ -262,15 +297,15 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
                       <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>Full Name</label>
-                      <input type="text" defaultValue="Dr. Dolores L. Montesines" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} />
+                      <input type="text" defaultValue={userName} style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} />
                     </div>
                     <div>
                       <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>Department</label>
-                      <input type="text" defaultValue="Computer Studies" disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
+                      <input type="text" defaultValue={userDept} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
                     </div>
                     <div style={{ gridColumn: '1 / -1' }}>
                       <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: '0.4rem' }}>TUP Email Address</label>
-                      <input type="email" defaultValue="dolores.montesines@tup.edu.ph" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }} />
+                      <input type="email" defaultValue={userEmail} disabled style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8f9fa', color: '#9ca3af', outline: 'none' }} />
                     </div>
                   </div>
                 </div>
@@ -311,6 +346,7 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
         setCollapsed={setCollapsed} 
         activeTerm={activeTerm}
         setActiveTerm={setActiveTerm}
+        userDept={userDept}
       />
       
       {/* Scrollable Container with Tracking Events */}
@@ -338,10 +374,10 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
             <div>
               <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#d4444c', margin: 0, letterSpacing: '-0.02em' }}>
-                Good day, Dr. Dolores!
+                Good day, {userName ? userName.split(' ')[0] : 'User'}!
               </h1>
               <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#6b7280', marginTop: '0.25rem' }}>
-                {activeTerm} · Computer Studies
+                {activeTerm} · {userDept}
               </div>
             </div>
           </div>
@@ -393,12 +429,12 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderLeft: '2px solid #f0f0f0', paddingLeft: '2rem', cursor: 'pointer' }}
               >
-                <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#9b232a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
-                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#9b232a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', overflow: 'hidden', flexShrink: 0, fontWeight: 700, textTransform: 'uppercase' }}>
+                   {userName ? userName.substring(0, 2) : 'U'}
                 </div>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>Dr. Dolores L. Montesines</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Head, Computer Studies</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>{userName || 'Loading...'}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Head, {userDept}</div>
                 </div>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '0.5rem', transform: showProfileMenu ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
                   <polyline points="6 9 12 15 18 9"></polyline>
@@ -408,9 +444,9 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
               {showProfileMenu && (
                 <div style={{ position: 'absolute', top: '120%', right: 0, width: '250px', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', zIndex: 100, overflow: 'hidden' }}>
                   <div style={{ padding: '1.25rem 1rem', borderBottom: '1px solid #e5e7eb', background: '#f8f9fa' }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827' }}>Dr. Dolores L. Montesines</div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.2rem' }}>Head, Computer Studies</div>
-                    <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.1rem' }}>dolores.montesines@tup.edu.ph</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827' }}>{userName}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.2rem' }}>Head, {userDept}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.1rem' }}>{userEmail}</div>
                   </div>
 
                   <div style={{ padding: '0.5rem' }}>
@@ -426,7 +462,11 @@ export function MainShell({ screen, setScreen, children }: { screen: Screen; set
                   </div>
 
                   <div style={{ borderTop: '1px solid #e5e7eb', padding: '0.5rem' }}>
-                    <div onClick={() => setScreen('login')} style={{ padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: '#d4163c', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#fef2f2'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                    <div onClick={() => {
+                      localStorage.removeItem('sage_token');
+                      localStorage.removeItem('sage_user');
+                      setScreen('login');
+                    }} style={{ padding: '0.6rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: '#d4163c', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.background = '#fef2f2'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                       Sign Out
                     </div>

@@ -3,31 +3,87 @@ import { createPortal } from 'react-dom';
 import { Screen } from '../../types';
 
 export default function Login({ setScreen }: { setScreen: (s: Screen) => void }) {
+  // States para sa main Login flow
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
   // States para sa Forgot Password Flow
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [resetError, setResetError] = useState('');
 
-  // State para sa Password Visibility
-  const [showPassword, setShowPassword] = useState(false);
+  // 1. Ang main function para maikonekta sa Node.js backend
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setIsLoading(true);
 
-  const handleResetPassword = (e: React.FormEvent) => {
+    try {
+      const response = await fetch('https://sage-scheduling-system-production.up.railway.app/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid email or password.');
+      }
+
+      // I-save ang security token sa browser
+      localStorage.setItem('sage_token', data.token);
+      localStorage.setItem('sage_user', JSON.stringify(data.user));
+
+      // I-redirect ang user sa 2FA screen bago tuluyang pumasok sa Dashboard
+      setScreen('2fa');
+
+    } catch (error: any) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetEmail) return;
 
     setIsSending(true);
+    setResetError(''); // I-clear ang error bago mag-send
     
-    // Simulate API Call delay
-    setTimeout(() => {
-      setIsSending(false);
+    try {
+      const response = await fetch('https://sage-scheduling-system-production.up.railway.app/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send reset link.');
+      }
+
+      // Kapag successful, itago ang modal at ipakita ang success toast
       setShowForgotModal(false);
       setResetEmail('');
       setShowSuccessToast(true);
       
-      // Itago ang toast pagkatapos ng 3 segundo
       setTimeout(() => setShowSuccessToast(false), 3000);
-    }, 1500);
+
+    } catch (error: any) {
+      setResetError(error.message);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -59,13 +115,28 @@ export default function Login({ setScreen }: { setScreen: (s: Screen) => void })
           <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: '2rem', color: '#1a1630', marginBottom: '0.5rem' }}>Welcome back!</h2>
           <p style={{ color: '#7a6f9a', marginBottom: '2.5rem', fontSize: '0.9rem' }}>Log in to manage TUP scheduling</p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* 2. Error Message Display */}
+          {errorMessage && (
+            <div style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.9rem', border: '1px solid #f5c6cb' }}>
+              {errorMessage}
+            </div>
+          )}
+
+          {/* 3. Binalot ang form elements at nilagyan ng onSubmit */}
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4a3f7a', display: 'block', marginBottom: '0.4rem' }}>TUP Email</label>
-              <input className="sage-input" placeholder="username@tup.edu.ph" type="email" style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(26,22,48,0.15)', outline: 'none' }} />
+              <input 
+                className="sage-input" 
+                placeholder="username@tup.edu.ph" 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(26,22,48,0.15)', outline: 'none' }} 
+              />
             </div>
             
-            {/* Password Field with Eye Icon Toggle */}
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#4a3f7a', display: 'block', marginBottom: '0.4rem' }}>Password</label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -73,6 +144,9 @@ export default function Login({ setScreen }: { setScreen: (s: Screen) => void })
                   className="sage-input" 
                   placeholder="Enter your password" 
                   type={showPassword ? "text" : "password"} 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                   style={{ width: '100%', padding: '0.75rem 2.5rem 0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(26,22,48,0.15)', outline: 'none' }} 
                 />
                 <button 
@@ -88,17 +162,22 @@ export default function Login({ setScreen }: { setScreen: (s: Screen) => void })
                 </button>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-            <span onClick={() => setShowForgotModal(true)} style={{ fontSize: '0.8rem', color: '#d4163c', fontWeight: 600, cursor: 'pointer', transition: 'opacity 0.2s' }} onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'} onMouseOut={(e) => e.currentTarget.style.opacity = '1'}>
-              Forgot password?
-            </span>
-          </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+              <span onClick={() => setShowForgotModal(true)} style={{ fontSize: '0.8rem', color: '#d4163c', fontWeight: 600, cursor: 'pointer', transition: 'opacity 0.2s' }} onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'} onMouseOut={(e) => e.currentTarget.style.opacity = '1'}>
+                Forgot password?
+              </span>
+            </div>
 
-          <button onClick={() => setScreen('2fa')} style={{ width: '100%', padding: '0.85rem', marginTop: '2.5rem', backgroundColor: '#d4163c', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(212,22,60,0.2)' }}>
-            Log In
-          </button>
+            {/* 4. Binago ang button type at dinagdag ang loading state */}
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              style={{ width: '100%', padding: '0.85rem', marginTop: '1.5rem', backgroundColor: isLoading ? '#a04d5b' : '#d4163c', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: isLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(212,22,60,0.2)' }}
+            >
+              {isLoading ? 'Logging in...' : 'Log In'}
+            </button>
+          </form>
 
           <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.85rem', color: '#7a6f9a' }}>
             Don't have an account? <span onClick={() => setScreen('signup')} style={{ color: '#d4163c', fontWeight: 700, cursor: 'pointer' }}>Sign up</span>
@@ -132,6 +211,7 @@ export default function Login({ setScreen }: { setScreen: (s: Screen) => void })
                   placeholder="e.g. juan.delacruz@tup.edu.ph" 
                   style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '0.9rem' }} 
                 />
+                {resetError && <p style={{ backgroundColor: '#f8d7da', color: '#721c24', padding: '0.6rem', borderRadius: '8px', marginBottom: '1.2rem', fontSize: '0.85rem', border: '1px solid #f5c6cb' }}>{resetError}</p>}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

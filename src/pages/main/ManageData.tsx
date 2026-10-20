@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 type Tab = 'faculty' | 'rooms' | 'sections' | 'courses' | 'timeslots';
@@ -16,18 +16,34 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
   // Hidden file input reference
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Gawing state ang table data para interactive ang Edit at Delete!
-  const [tableData, setTableData] = useState({
-    faculty: [{ id: 'EMP-01', desc: 'Dr. Dolores L. Montesines' }, { id: 'EMP-02', desc: 'Prof. Maria Santos' }, { id: 'EMP-03', desc: 'Prof. Juan Dela Cruz' }],
-    rooms: [{ id: 'LAB-401', desc: 'Computer Laboratory 1' }, { id: 'LEC-305', desc: 'Lecture Room (Science Bldg)' }],
-    sections: [{ id: 'BSCS 3-1', desc: 'Computer Science - 3rd Year' }, { id: 'BSCS 1-1', desc: 'Computer Science - 1st Year' }],
-    courses: [{ id: 'CS311', desc: 'Software Engineering (3 Units)' }, { id: 'CS312', desc: 'Artificial Intelligence (3 Units)' }],
-    timeslots: [{ id: 'TS-MW-Morning', desc: 'Mon/Wed 7:00 AM - 10:00 AM' }, { id: 'TS-TTH-Afternoon', desc: 'Tue/Thu 1:00 PM - 4:00 PM' }]
+  // 1. Gawing blangko ang initial state imbes na may dummy data
+  const [tableData, setTableData] = useState<Record<Tab, Array<{id: string, description: string, extra?: string}>>>({
+    faculty: [], rooms: [], sections: [], courses: [], timeslots: []
   });
 
+  // 2. Function para kumuha ng data mula sa MySQL
+  const fetchData = async (tab: Tab) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/data/${tab}`);
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const data = await response.json();
+      
+      console.log(`Data for ${tab}:`, data); // <-- DINAGDAG NA LOG
+      
+      setTableData(prev => ({ ...prev, [tab]: data }));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // 3. Awtomatikong tawagin ang fetchData kapag lumipat ng Tab o nag-load ang page
+  useEffect(() => {
+    fetchData(activeTab);
+  }, [activeTab]);
+
   // States for Edit and Delete Actions
-  const [itemToDelete, setItemToDelete] = useState<{id: string, desc: string} | null>(null);
-  const [itemToEdit, setItemToEdit] = useState<{id: string, desc: string} | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{id: string, description: string} | null>(null);
+  const [itemToEdit, setItemToEdit] = useState<{id: string, description: string} | null>(null);
 
   const glassPanel = {
     background: 'rgba(255, 255, 255, 0.45)',
@@ -53,7 +69,7 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
   });
 
   const getHeaders = () => {
-    if (activeTab === 'timeslots') return ['Block ID', 'Day & Time Range', 'Type (Hours)', 'Actions'];
+    if (activeTab === 'timeslots') return ['Block ID', 'Day & Time Range', 'Modality', 'Actions'];
     return ['ID / Code', 'Name / Description', 'Status', 'Actions'];
   };
 
@@ -62,7 +78,8 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
     const data = tableData[activeTab];
     if (!searchQuery) return data;
     const lowerQuery = searchQuery.toLowerCase();
-    return data.filter(item => item.id.toLowerCase().includes(lowerQuery) || item.desc.toLowerCase().includes(lowerQuery));
+    // Palitan ang item.desc ng item.description
+    return data.filter(item => item.id.toLowerCase().includes(lowerQuery) || item.description.toLowerCase().includes(lowerQuery));
   }, [activeTab, searchQuery, tableData]);
 
   // Handle File Upload
@@ -70,8 +87,7 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  // NA-UPDATE: Pwede na ring tumanggap ng PDF at Word (.docx) para ma-comply ang iba-ibang format ni Ma'am
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -87,45 +103,125 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
       return;
     }
 
+    if (fileExtension === '.pdf' || fileExtension === '.docx') {
+      setToastType('error');
+      setToastMessage('PDF and Word support is coming soon. Please upload Excel/CSV for now.');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      e.target.value = ''; 
+      return;
+    }
+
     setToastType('success');
-    setToastMessage(`${file.name} successfully uploaded! Parsing institutional format...`);
+    setToastMessage(`Uploading ${file.name}...`);
     setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-    e.target.value = ''; 
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/upload/${activeTab}`, {
+        method: 'POST',
+        body: formData 
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error || 'Upload failed.');
+
+      setToastType('success');
+      setToastMessage(data.message);
+      
+      // 4. I-refresh ang table pagkatapos mag-upload para makita agad ang bagong data!
+      fetchData(activeTab); 
+
+    } catch (error: any) {
+      setToastType('error');
+      setToastMessage(error.message);
+    } finally {
+      setTimeout(() => setShowToast(false), 3000);
+      e.target.value = ''; 
+    }
   };
 
   // DELETE LOGIC
-  const confirmDelete = () => {
+  // DELETE LOGIC
+  const confirmDelete = async () => {
     if (!itemToDelete) return;
-    setTableData(prev => ({
-      ...prev,
-      [activeTab]: prev[activeTab].filter(item => item.id !== itemToDelete.id)
-    }));
-    setToastType('success');
-    setToastMessage(`Record ${itemToDelete.id} successfully deleted.`);
-    setShowToast(true);
-    setItemToDelete(null);
-    setTimeout(() => setShowToast(false), 3000);
+    
+    try {
+      // 1. Magpadala ng DELETE request sa backend
+      const response = await fetch(`http://localhost:5000/api/data/${activeTab}/${itemToDelete.id}`, {
+        method: 'DELETE'
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete record.');
+      }
+
+      // 2. Kapag success sa database, saka pa lang buburahin sa UI
+      setTableData(prev => ({
+        ...prev,
+        [activeTab]: prev[activeTab].filter(item => item.id !== itemToDelete.id)
+      }));
+      
+      setToastType('success');
+      setToastMessage(data.message || `Record successfully deleted.`);
+      setShowToast(true);
+      
+    } catch (error: any) {
+      setToastType('error');
+      setToastMessage(error.message);
+      setShowToast(true);
+    } finally {
+      setItemToDelete(null); // I-close ang modal
+      setTimeout(() => setShowToast(false), 3000);
+    }
   };
 
   // EDIT LOGIC
-  const handleEditSave = (e: React.FormEvent<HTMLFormElement>) => {
+  // EDIT LOGIC
+  const handleEditSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!itemToEdit) return;
     
     const formData = new FormData(e.currentTarget);
-    const newDesc = formData.get('desc') as string;
+    const newDescription = formData.get('description') as string;
 
-    setTableData(prev => ({
-      ...prev,
-      [activeTab]: prev[activeTab].map(item => item.id === itemToEdit.id ? { ...item, desc: newDesc } : item)
-    }));
+    try {
+      // 1. Magpadala ng PUT request sa backend
+      const response = await fetch(`http://localhost:5000/api/data/${activeTab}/${itemToEdit.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: newDescription })
+      });
 
-    setToastType('success');
-    setToastMessage(`Record ${itemToEdit.id} successfully updated.`);
-    setShowToast(true);
-    setItemToEdit(null);
-    setTimeout(() => setShowToast(false), 3000);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update record.');
+      }
+
+      // 2. I-update ang UI state kapag nagtagumpay sa database
+      setTableData(prev => ({
+        ...prev,
+        [activeTab]: prev[activeTab].map(item => item.id === itemToEdit.id ? { ...item, description: newDescription } : item)
+      }));
+
+      setToastType('success');
+      setToastMessage(data.message || `Record ${itemToEdit.id} successfully updated.`);
+      setShowToast(true);
+      setItemToEdit(null);
+      
+    } catch (error: any) {
+      setToastType('error');
+      setToastMessage(error.message);
+      setShowToast(true);
+    } finally {
+      setTimeout(() => setShowToast(false), 3000);
+    }
   };
 
   const GlassCheckIcon = () => (
@@ -188,7 +284,7 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d4163c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
         </div>
         <h3 style={{ margin: '0 0 0.4rem', fontSize: '1.1rem', color: '#1a1630', fontWeight: 700 }}>Import {activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('timeslots', 'Time Slots')} Files</h3>
-        <p style={{ margin: 0, fontSize: '0.85rem', color: '#7a6f9a' }}>Supports CSV, Excel (.xlsx), Word (.docx), and PDF documents provided by the department.</p>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: '#7a6f9a' }}>Supports CSV and Excel ONLY provided by the department.</p>
       </div>
 
       {/* DATA TABLE AREA */}
@@ -222,14 +318,18 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
               {displayedData.map((row, index) => (
                 <tr key={index} style={{ borderTop: '1px solid rgba(255,255,255,0.4)', transition: 'background 0.2s' }}>
                   <td style={{ padding: '1rem 1.75rem', fontSize: '0.9rem', fontWeight: 600, color: '#1a1630' }}>{row.id}</td>
-                  <td style={{ padding: '1rem 1.75rem', fontSize: '0.9rem', color: '#4a3f7a' }}>{row.desc}</td>
+                  <td style={{ padding: '1rem 1.75rem', fontSize: '0.9rem', color: '#4a3f7a' }}>{row.description}</td>
                   {activeTab !== 'timeslots' && (
                     <td style={{ padding: '1rem 1.75rem' }}>
                       <span style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: 'rgba(32,167,131,0.15)', color: '#20a783' }}>Active</span>
                     </td>
                   )}
                   {activeTab === 'timeslots' && (
-                    <td style={{ padding: '1rem 1.75rem', fontSize: '0.9rem', color: '#4a3f7a' }}>3 Hours</td>
+                    <td style={{ padding: '1rem 1.75rem' }}>
+                      <span style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, background: 'rgba(74, 63, 122, 0.1)', color: '#4a3f7a' }}>
+                        {row.extra || 'N/A'}
+                      </span>
+                    </td>
                   )}
                   <td style={{ padding: '1rem 1.75rem', textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -274,7 +374,7 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
                 <p style={{ fontSize: '0.85rem', color: '#7a6f9a', margin: 0 }}>This action cannot be undone.</p>
               </div>
             </div>
-            <p style={{ fontSize: '0.95rem', color: '#1a1630', marginTop: '1.5rem', marginBottom: '2rem' }}>Are you sure you want to remove <strong>{itemToDelete.id}</strong> ({itemToDelete.desc}) from the records?</p>
+            <p style={{ fontSize: '0.95rem', color: '#1a1630', marginTop: '1.5rem', marginBottom: '2rem' }}>Are you sure you want to remove <strong>{itemToDelete.id}</strong> ({itemToDelete.description}) from the records?</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
               <button onClick={() => setItemToDelete(null)} style={{ background: 'none', border: 'none', fontWeight: 700, color: '#6b7280', cursor: 'pointer', padding: '0.5rem 1rem' }}>Cancel</button>
               <button onClick={confirmDelete} style={{ background: '#d4163c', color: '#fff', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(212,22,60,0.2)' }}>Delete Record</button>
@@ -298,7 +398,7 @@ export default function ManageData({ setScreen }: { setScreen: (s: any) => void 
             
             <div style={{ marginBottom: '2rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4a3f7a', display: 'block', marginBottom: '0.4rem' }}>Name / Description</label>
-              <input type="text" name="desc" defaultValue={itemToEdit.desc} required style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', color: '#1a1630' }} />
+              <input type="text" name="description" defaultValue={itemToEdit.description} required style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', color: '#1a1630' }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
