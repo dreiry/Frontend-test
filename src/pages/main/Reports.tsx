@@ -35,9 +35,33 @@ export default function Reports({ setScreen }: { setScreen: (s: Screen) => void 
     setTokens(tokens.map(t => t.id === id ? { ...t, status: 'Revoked' } : t));
   };
 
+  // UPDATED EXPORT LOGIC
   const handleExportAction = (reportName: string, format: 'Excel' | 'PDF') => {
-    setOpenDropdown(null);
-    alert(`Exporting ${reportName} as ${format}...`);
+    setOpenDropdown(null); // Close the dropdown menu
+
+    if (format === 'Excel') {
+      let reportType = '';
+      
+      // Match the frontend title to the backend reportType
+      if (reportName === 'Master Department Schedule') {
+        reportType = 'master-schedule';
+      } else if (reportName === 'Section-Specific Timetable') {
+        reportType = 'sections';
+      } else if (reportName.includes('Faculty') || reportName.includes('Department Summary of Load')) {
+        reportType = 'faculty-load';
+      } else if (reportName.includes('Room')) {
+        reportType = 'room-utilization';
+      } else {
+        reportType = 'master-schedule'; // fallback
+      }
+
+      // Automatically trigger the download from your backend
+      const exportUrl = `http://localhost:5000/api/reports/export?reportType=${reportType}`;
+      window.open(exportUrl, '_blank');
+      
+    } else if (format === 'PDF') {
+      alert(`Exporting ${reportName} as PDF is currently in development...`);
+    }
   };
 
   // Helper function para sa bawat row ng report na may iisang export button + dropdown
